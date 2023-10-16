@@ -1,0 +1,186 @@
+---
+title: "Assignment3: Supervised Learning Competition"
+authors: 
+  - Group 11: 
+      - Lourenço Santos Moitinho de Almeida
+      - Liam Thomassen
+      - Tim Rentenaar
+      - Erdem Koçer 
+date: last-modified
+format:
+  html:
+    toc: true
+    self-contained: true
+    code-fold: true
+    df-print: kable
+---
+
+change this code chunk to `.qmd` syntax
+
+```{r setup, include = FALSE}
+knitr::opts_chunk $ set( echo = TRUE, message = FALSE, warning = FALSE, 
+                         comment = " ", error = FALSE, fig.align = 'center'  )
+```
+
+# Assignment 3: Supervised Learning Competition
+
+```{r}
+#| label: R packages
+#| echo: false
+#| warning: false
+#| message: false
+
+library(tidyverse)
+library(dummy)
+library(ISLR)
+#library( ggplot2 )   
+# additional packages here
+```
+
+```{r}
+#| label: data loading
+#| echo: false
+test_data <- readRDS("test.rds")
+train_data <-readRDS("train.rds")
+```
+
+## Data Description & Data Exploration
+
+1.  Tukey's Approach
+
+-   look at center of spread
+-   find comparison
+
+2.  Peng's EDA checklist
+
+-   formulate question
+-   read into your data
+-   check packaging, run `str()`
+-   look at the top and bottom of your data
+-   check your n's
+
+3.  5-number summary
+
+-   extremes (max, min)
+-   Q1 and Q3
+-   median
+
+4.  Other
+
+-   data type summary
+-   missing values?
+-   outlier detection -variation and association (lab 8)
+
+As shown below the training dataset contains 316 observations and 31 variables. One of which is the dependent variable `score`. The majority of these explanatory variables are mainly factor (categorical) features. Although this dataset contains 14 numerical features, only `age`, `absences` and `score` are true numeric variables. The other 11 'numeric' variables are either categorical or ordinal.
+```{r}
+str(train_data)
+```
+In order to better understand the dataset...# To do 
+```{r}
+#checking the top and bottom of the dataset 
+head(train_data)
+tail(train_data)
+```
+```{r}
+#checking for missing values 
+sapply(train_data, function(x) sum(is.na(x)))
+```
+```{r}
+#summary of data
+# 5-number summary 
+summary(train_data)
+```
+```{r}
+#outliers? 
+train_data |> 
+  ggplot(aes(x = score)) +
+  geom_boxplot() +
+  theme_minimal()
+```
+```{r}
+#correlation 
+#need to fix up
+var_list_cat = c("school", "sex", "address","famsize", "Pstatus", "Mjob", "Fjob", "reason", "guardian","failures", "schoolsup", "famsup", "paid", "activities", "nursery", "higher", "internet", "romantic" )
+var_list_ord = c("Medu", "Fedu", "traveltime", "studytime", "famrel", "freetime", "goout", "Dalc", "Walc", "health")
+var_list_num = c("age", "score", "absences")
+
+cor(train_data[c("age","Medu","Fedu","traveltime","studytime","failures","famrel","freetime","goout","Dalc","Walc","health","absences","score")])
+```
+
+
+
+## Model Description
+
+1.  Linear Regression 
+2.  Regularized Regression
+
+-   use lasso, ridge or something better
+
+3.  Some tree-based model
+
+-   e.g. random forest
+
+4.  Attempt Neural Network
+
+## Data Preprocessing & Transformation
+
+1.  Convert variables into correct data types
+2.  Find statistically significant independent variables 
+2.  One-hot encoding for categorial variables (ordinal encoding for ordinal variables?)
+3.  Data Reduction
+
+-   dimensionality reduction
+-   remove correlated variables
+
+5.  Some type of scaling for `score`?
+-   z-score/min-max
+
+## Model Comparison
+
+1.  Models 
+- Note: Must change formula for every model
+```{r}
+set.seed( 5 )
+
+data_sets = partition( data = train_data, prob = c( 0.8, 0.2 ) )
+
+train = data_sets $ part1
+val  = data_sets $ part2
+
+actual_test  = val $ score 
+```
+
+1.1 Linear Regression 
+```{r}
+linreg_formula = score~.
+predict_linreg = lm(formula, train = train, test = val)
+```
+```{r}
+summary(lin_reg)
+```
+```{r}
+y_pred_lin_reg <- predict(lin_reg)
+```
+```{r}
+mse(train_data$score, predict(lin_reg))
+
+```
+
+
+1.2 Ridge Regression
+1.3 Tree
+1.4 Neural Network 
+2. Comparison
+-   MSE, Train-Val-Test Split (lab 12), Neural Networks have their own special evaluation, ROC curve, AUC 
+
+
+## Chosen Model
+
+-   focus on MSE
+
+## Team Member Contributions
+
+-   Lourenço Santos Moitinho de Almeida: a, b, c
+-   Liam Thomassen: b, c, d
+-   Tim Rentenaar: a, b, d
+-   Erdem Koçer: a, b, d
