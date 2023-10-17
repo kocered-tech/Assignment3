@@ -65,6 +65,29 @@ y_test <- test$score
 
 ## Models
 
+## KNN
+
+```{r}
+knnmodel = knnreg(X_train, y_train$train.score,k=5)
+pred_y_knn = predict(knnmodel, X_test)
+
+mse = mean((y_test - pred_y_knn)^2)
+mae = caret::MAE(y_test, pred_y_knn)
+rmse = caret::RMSE(y_test, pred_y_knn)
+
+cat("MSE: ", mse, "MAE: ", mae, " RMSE: ", rmse)
+```
+
+```{r}
+ggplot(data=NULL, aes(x=y_test,y=pred_y_knn)) +
+  geom_point()+
+  geom_abline(intercept = 0, slope = 1, color = "blue") +
+  labs(x = "Observed", y = "Predicted") +
+  ggtitle("Observed vs. Predicted") +
+  xlim(c(-2,2)) +
+  ylim(c(-2,2))
+```
+
 ## XGBoost
 
 ```{r}
