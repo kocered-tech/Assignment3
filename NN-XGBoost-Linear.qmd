@@ -6,12 +6,16 @@ editor: visual
 
 ## Install libraries
 
+Uncomment to install libraries
+
 ```{r}
 #install.packages("drat", repos="https://cran.rstudio.com")
 #drat:::addRepo("dmlc")
 #install.packages("xgboost")
 #install.packages("caret)
 #install.packages("xgboost)
+#install.packages("corrplot")
+#install.packages("glmnet")
 ```
 
 ```{r}
@@ -22,6 +26,8 @@ library(xgboost)
 library(fastDummies)
 library(dplyr)
 library(caret)
+library(corrplot)
+library(glmnet)
 ```
 
 ## Data Preparation
@@ -43,6 +49,11 @@ train_data |> ggplot(aes(x=score)) +
 ```{r}
 train_data_dummy <- dummy_cols(train_data,remove_first_dummy=TRUE,remove_selected_columns=TRUE)
 train_data_dummy
+```
+
+```{r}
+corrplot(cor(train_data_dummy)[1:20,1:20], method="color")
+corrplot(cor(train_data_dummy)[20:40,20:40], method="color")
 ```
 
 ## Sample train and test data
@@ -105,14 +116,14 @@ model_xgboost = xgboost(data = xgb_train, max.depth = 8, nrounds = 40, verbose =
 ## XGBoost model performance
 
 ```{r}
-y_pred_xgboost <- predict(model_xgboost,xgb_test)
+pred_y_xgboost <- predict(model_xgboost,xgb_test)
 
 # Calculate the Mean Squared Error (MSE)
-mean((y_pred_xgboost - y_test)^2)
+mean((pred_y_xgboost - y_test)^2)
 ```
 
 ```{r}
-ggplot(data=NULL, aes(x=y_test,y=y_pred_xgboost)) +
+ggplot(data=NULL, aes(x=y_test,y=pred_y_xgboost)) +
   geom_point()+
   geom_abline(intercept = 0, slope = 1, color = "blue") +
   labs(x = "Observed", y = "Predicted") +
@@ -125,14 +136,13 @@ ggplot(data=NULL, aes(x=y_test,y=y_pred_xgboost)) +
 
 ```{r}
 multinom <- keras_model_sequential() %>%
-    layer_dense(16, activation = 'relu') %>%
-    layer_dropout(0.1) %>%
-    layer_dense(12, activation = 'relu') %>%
+    layer_dense(16, activation = 'tanh') %>%
+    layer_dense(8, activation = 'sigmoid') %>%
     layer_dense(1)
 
 multinom %>% compile(
   loss = 'mean_absolute_error',
-  optimizer = optimizer_adam(0.001)
+  optimizer = optimizer_adam()
 )
 
 ```
@@ -143,27 +153,21 @@ multinom %>% compile(
 ```{r}
 pl <- multinom %>% fit(as.matrix(X_train), 
       as.matrix(y_train), 
-      epochs = 100, 
-      validation_split = 0.1,       
+      epochs = 250, 
+      validation_split = 0.2,       
       verbose = 1)
 ```
 
 ```{r}
-y_pred <- predict(multinom, as.matrix(X_train))
+pred_y_nn <- predict(multinom, as.matrix(X_test))
 
 # Calculate the Mean Squared Error (MSE)
-mean((as.matrix(y_train) - y_pred)^2)
+mean((as.matrix(y_test) - pred_y_nn)^2)
 ```
 
 ```{r}
-y_pred <- predict(multinom, as.matrix(X_test))
-# Calculate the Mean Squared Error (MSE)
-mean((y_pred - y_test)^2)
-```
-
-```{r}
-ggplot(data=NULL, aes(x=y_test,y=y_pred)) +
-  geom_point()+
+ggplot(data=NULL, aes(x=y_test,y=pred_y_nn)) +
+  geom_point() +
   geom_abline(intercept = 0, slope = 1, color = "blue") +
   labs(x = "Observed", y = "Predicted") +
   ggtitle("Observed vs. Predicted") +
@@ -174,18 +178,54 @@ ggplot(data=NULL, aes(x=y_test,y=y_pred)) +
 ```{r}
 predict_linreg = lm(score~.,data=train)
 #summary(predict_linreg)
-y_pred_lin_reg <- predict(predict_linreg,newdata=test)
+pred_y_linreg <- predict(predict_linreg,newdata=test)
 
 # Calculate the Mean Squared Error (MSE)
-mean((y_pred_lin_reg - y_test)^2)
+mean((pred_y_linreg - y_test)^2)
 ```
 
 ```{r}
-ggplot(data=NULL, aes(x=y_test,y=y_pred_lin_reg)) +
+ggplot(data=NULL, aes(x=y_test,y=pred_y_linreg)) +
   geom_point()+
   geom_abline(intercept = 0, slope = 1, color = "blue") +
   labs(x = "Observed", y = "Predicted") +
   ggtitle("Observed vs. Predicted") +
   xlim(c(-2,2)) +
   ylim(c(-2,2))
+```
+
+## Lasso Regression
+
+```{r}
+#perform k-fold cross-validation to find optimal lambda value
+cv_model <- cv.glmnet(data.matrix(X_train), data.matrix(y_train), alpha = 1)
+
+#find optimal lambda value that minimizes test MSE
+best_lambda <- cv_model$lambda.min
+best_model <- glmnet(data.matrix(X_train), data.matrix(y_train), alpha = 1, lambda = best_lambda)
+coef(best_model)
+```
+
+```{r}
+plot(cv_model) 
+```
+
+```{r}
+pred_y_lasso <- predict(best_model, s = best_lambda, newx = data.matrix(X_test))
+```
+
+```{r}
+lasso <- mean((y_test - pred_y_lasso)^2)
+knn <- mean((y_test - pred_y_knn)^2)
+xgboost <- mean((y_test - pred_y_xgboost)^2)
+lin <- mean((y_test - pred_y_linreg)^2)
+nn <- mean((as.matrix(y_test) - pred_y_nn)^2)
+
+cat("knn: ", knn, 
+    "xgboost: ", xgboost,
+    "linear: ", lin,
+    "lasso: ", lasso,
+    "nn: ",nn)
+
+
 ```
