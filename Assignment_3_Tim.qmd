@@ -1,0 +1,167 @@
+---
+title: "Assignment 3"
+author: 
+  - Erdem Koçer
+  - Tim Rentenaar
+  - Lourenço Santos Moitinho de Almeida
+  - Liam Thomassen
+date: last-modified
+format:
+  html:
+    toc: true
+    self-contained: true
+    code-fold: true
+    df-print: kable
+---
+
+# Importing libraries and loading the data
+
+```{r}
+install.packages("fastDummies")
+install.packages("caret")
+```
+
+```{r}
+library(tidyverse)
+library(fastDummies)
+library(caret)
+```
+
+```{r}
+train <- readRDS("train.rds")
+test <- readRDS("test.rds")
+```
+
+# Exploratory Data Analysis
+
+In this part Exploratory Data Analysis (EDA) is performed according to Tukey's and Peng's approaches from the lecture.
+
+-   Tukey's approach to EDA
+    -   Find center and spread
+    -   Find comparisons
+    -   "Straightening and Flattening"
+-   Peng's EDA checklist
+    1.  Formulate your question
+    2.  Read in your data
+    3.  Check the packaging
+    4.  Look at the top and bottom of your data
+    5.  Check your Ns
+    6.  Validate with atleast one external source
+    7.  Try the easy solution first
+    8.  Challenge your solution
+    9.  Follow up
+
+```{r}
+# check packaging
+str(train)
+```
+
+```{r}
+# check top of dataset
+head(train)
+```
+
+```{r}
+# check bottom of dataset
+tail(train)
+```
+
+```{r}
+# check number of missing values
+sum(is.na(train))
+```
+
+```{r}
+# check center and spread of score
+summary(train$score)
+```
+
+```{r}
+# comparisons between columns (numeric only): correlation
+cor(train[c("age","Medu","Fedu","traveltime","studytime","failures","famrel","freetime","goout","Dalc","Walc","health","absences","score")])
+```
+
+# Data preparation
+
+## Data Cleaning
+
+## Data Transformation
+
+```{r}
+# dummy coding
+train_dummy <- dummy_cols(train, remove_selected_columns = TRUE)
+```
+
+## Data Reduction
+
+# Model Training
+
+## Creating train/dev splits
+
+```{r}
+# k-fold cross-validation, k=5
+train_control <- trainControl(method="cv", number=5)
+```
+
+## Training different models
+
+### Trivial baseline (mean)
+
+```{r}
+# creating a mean trivial baseline is not possible with the caret package
+# the mean trivial baseline will be created with a single train/dev split
+
+sample_size <- floor(0.8 * nrow(train_dummy))
+
+set.seed(1234)
+train_index <- sample(seq_len(nrow(train_dummy)), size=sample_size)
+
+train_dummy_train <- train_dummy[train_index,]
+train_dummy_dev <- train_dummy[-train_index,]
+
+mean_score_train <- mean(train_dummy_train$score)
+```
+
+### Linear regression
+
+```{r}
+# training a linear model using k-fold crossvalidation
+lm <- train(score ~ ., data=train_dummy, method="lm", trControl=train_control)
+```
+
+### Neural Network
+
+```{r}
+# training a model averaged neural network using k-fold crossvalidation
+nn <- train(score ~ ., data=train_dummy, method="avNNet", trControl=train_control)
+```
+
+# Model Evaluation
+
+## Trivial baseline (mean)
+
+```{r}
+# resulting Mean Absolute Error from the mean trivial baseline
+abserror <- abs(train_dummy_dev$score - mean_score_train)
+mae <- mean(abserror)
+print(mae)
+```
+
+## Linear regression
+
+```{r}
+# resulting scores (including MAE) from linear regression
+print(lm)
+```
+
+## Neural Network
+
+```{r}
+print(nn)
+```
+
+# Result
+
+Using the chosen model on the test data
+
+# Team member contributions
