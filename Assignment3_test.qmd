@@ -1,0 +1,149 @@
+---
+title: "Assignment3: Supervised Learning Competition"
+authors: 
+  - Group 11: 
+      - Lourenço Santos Moitinho de Almeida
+      - Liam Thomassen
+      - Tim Rentenaar
+      - Erdem Koçer 
+date: last-modified
+format:
+  html:
+    toc: true
+    self-contained: true
+    code-fold: true
+    df-print: kable
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk $ set( echo = TRUE, message = FALSE, warning = FALSE, 
+                         comment = " ", error = FALSE, fig.align = 'center'  )
+```
+
+# Assignment 3: Supervised Learning Competition
+
+```{r}
+#| label: R packages
+#| echo: false
+#| warning: false
+#| message: false
+
+library(tidyverse)
+library(dummy)
+# additional packages here
+```
+
+```{r}
+#| label: data loading
+#| echo: false
+test_data <- readRDS("test.rds")
+train_data <-readRDS("train.rds")
+```
+
+## Data Description & Data Exploration
+
+-   Lab 8: Variation, Association
+-   data cleaning: outlier detection, check if there is missing values
+-   EDA: Peng's Checklist, Tukey's Approach, 5 number summary
+
+```{r}
+str(train_data)
+```
+
+```{r}
+#head(train_data)
+#glimpse(train_data)
+```
+
+```{r}
+#| label: Checking for missing Values 
+#sapply(train_data, function(x) sum(is.na(x)))
+
+#sapply(test_data, function(x) sum(is.na(x)))
+```
+
+```{r}
+#need to turn some num variables into factors since they are actually categorial variables 
+#need to delete one dummy var per factor var to avoid multicollinearity 
+dummy_data <- dummy(train_data, p="all", int=TRUE)
+head(dummy_data)
+```
+
+```{r}
+train_data |> 
+  ggplot(aes(x = sex, y = score, fill = sex)) +
+  geom_boxplot() +
+  theme_minimal()
+```
+
+```{r}
+train_data |> 
+  ggplot(aes(x = sex, y = score)) +
+  geom_boxplot() +
+  facet_wrap(~school)
+```
+```{r}
+lapply(train_data, table)
+```
+```{r}
+factor_columns <- names(train_data)[sapply(train_data, is.factor)]
+for (col in factor_columns) {
+  print(
+    ggplot(train_data, aes_string(x = col, y = 'score')) +
+      geom_boxplot(aes_string(fill = col)) +
+      labs(title = paste("Boxplot of Value by", col), x = col, y = 'score') +
+      theme_minimal()
+  )
+}
+```
+```{r}
+summary(train_data$score)
+```
+```{r}
+for (col in factor_columns) {
+  formula_obj <- as.formula(paste("~", col))
+  print(
+    ggplot(train_data) +
+      geom_density(aes(x = score)) +
+      facet_wrap(formula_obj)
+  )
+}
+```
+
+```{r}
+for (col in factor_columns) {
+  formula_obj <- as.formula(paste("score ~", col))
+  print(summary(aov(formula_obj, data = train_data)))
+}
+```
+
+
+## Model Description
+
+-   models learnt for continous y: linear regression (lab 10), local regression (loess, spliness), neural network for regression
+-   models learnt for classification: KNN (lab 15), logistic regression (lab 15), LDA (lab 15), trees, random forest, boosting, SVM, Neural Nets
+-   other: CART (used in DW), C5.0 (used in DW), ridge regression (used in ML), lasso regression (used in ML), extra trees (used in ML), Hist Gradient Boosting Regressor (used in ML)
+
+## Data Preprocessing & Transformation
+
+-   data transformation: min-max, z-score (standardscalar), decimal scaling
+-   categorial vars into dummy vars
+-   data reduction: dimensionality reduction (for useless features)
+-   correlated variables (used in DW)
+
+## Model Comparison
+
+-   prediction and confidence intervals, MSE, Root MSE, MAE, mAE, R\^2
+-   although we don't have a classification problem: confusion matrix (total errors, sensitivity, specificity, accuracy, error rate, NPV, PPV, F1 score), ROC curve, AUC
+-   learning curves
+
+## Chosen Model
+
+Note: performance metric is MSE so focus on that
+
+## Team Member Contributions
+
+-   Lourenço Santos Moitinho de Almeida: a, b, c
+-   Liam Thomassen: b, c, d
+-   Tim Rentenaar: a, b, d
+-   Erdem Koçer: a, b, d
