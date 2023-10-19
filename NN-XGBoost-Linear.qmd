@@ -60,10 +60,20 @@ corrplot(cor(train_data_dummy)[20:40,20:40], method="color")
 ## Sample train and test data
 
 ```{r}
-set.seed(5)
-sample <- sample(c(TRUE, FALSE), nrow(train_data_dummy), replace=TRUE, prob=c(0.8,0.2))
+set.seed(40)
+sample <- sample(c(TRUE, FALSE), nrow(train_data_dummy), replace=TRUE, prob=c(0.7,0.3))
 train  <- train_data_dummy[sample, ]
 test   <- train_data_dummy[!sample, ]
+```
+
+```{r}
+train |> ggplot(aes(x=score)) +
+  geom_histogram()
+```
+
+```{r}
+test |> ggplot(aes(x=score)) +
+  geom_histogram()
 ```
 
 ## Train, test split
@@ -80,7 +90,7 @@ y_test <- test$score
 ## KNN
 
 ```{r}
-knnmodel = knnreg(X_train, y_train$train.score,k=5)
+knnmodel = knnreg(X_train, y_train$train.score,k=20)
 pred_y_knn = predict(knnmodel, X_test)
 
 mse = mean((y_test - pred_y_knn)^2)
@@ -111,7 +121,7 @@ xgb_model = xgb.train(data = xgb_train, max.depth = 8, watchlist=watchlist, nrou
 ```
 
 ```{r}
-model_xgboost = xgboost(data = xgb_train, max.depth = 8, nrounds = 40, verbose = 0)
+model_xgboost = xgboost(data = xgb_train, max.depth = 5, nrounds = 40, verbose = 0)
 ```
 
 ## XGBoost model performance
@@ -154,8 +164,8 @@ multinom %>% compile(
 ```{r}
 pl <- multinom %>% fit(as.matrix(X_train), 
       as.matrix(y_train), 
-      epochs = 40, 
-      validation_split = 0.2,       
+      epochs = 60, 
+      validation_split = 0.1,       
       verbose = 1)
 ```
 
@@ -199,11 +209,17 @@ ggplot(data=NULL, aes(x=y_test,y=pred_y_linreg)) +
 
 ```{r}
 #perform k-fold cross-validation to find optimal lambda value
-cv_model <- cv.glmnet(data.matrix(X_train), data.matrix(y_train), alpha = 1)
+original_weights <- rep(1, nrow(X_train))  # Initialize all weights to 1
+score_threshold <- 1  # Define the threshold
+
+# Double the weights for observations with a score larger than 1
+custom_weights <- ifelse(y > score_threshold, 2 * original_weights, original_weights)
+
+cv_model <- cv.glmnet(data.matrix(X_train),weights=custom_weights, data.matrix(y_train), alpha = 1, type.measure="mse")
 
 #find optimal lambda value that minimizes test MSE
 best_lambda <- cv_model$lambda.min
-best_model <- glmnet(data.matrix(X_train), data.matrix(y_train), alpha = 1, lambda = best_lambda)
+best_model <- glmnet(data.matrix(X_train), data.matrix(y_train), alpha = 1,type.measure="mse", lambda = best_lambda)
 coef(best_model)
 ```
 
@@ -222,11 +238,24 @@ xgboost <- mean((y_test - pred_y_xgboost)^2)
 lin <- mean((y_test - pred_y_linreg)^2)
 nn <- mean((as.matrix(y_test) - pred_y_nn)^2)
 
+average <- (pred_y_nn+pred_y_lasso)/2
+average_mse <- mean((as.matrix(y_test) - average)^2)
+
 cat("knn: ", knn, 
     "xgboost: ", xgboost,
     "linear: ", lin,
     "lasso: ", lasso,
-    "nn: ",nn)
+    "nn: ",nn,
+    "average: ",average_mse)
 
 
+```
+
+```{r}
+mean_y_train <- mean(as.matrix(y_train))
+mean_y_train
+```
+
+```{r}
+mean((as.matrix(y_test) - mean_y_train)^2)
 ```
