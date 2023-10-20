@@ -176,14 +176,14 @@ For the correlation between `score` and the rest of the explanatory variables we
 
 **Table 4:** Correlation Matrix between Numerical Variables and `score`
 
-```{r}
+```{r, fig.width = 10, fig.height = 10}
 #| label: Correlation between numerical variables and score
 corrplot(cor(train_data[sapply(train_data, is.numeric)]), diag = FALSE)
 ```
 
 **Table 5:** Correlation Matrix between Converted Categorical Variables and `score`
 
-```{r}
+```{r, fig.width = 10, fig.height = 10}
 #| label: Correlation between dummy categorical variables and score
 temp_df <- train_data[, !sapply(train_data, is.numeric)]
 temp_df_dummy <- dummy_cols(temp_df,remove_first_dummy=TRUE,remove_selected_columns=TRUE)
