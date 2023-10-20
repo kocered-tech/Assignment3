@@ -1,0 +1,301 @@
+---
+title: "Assignment3: Supervised Learning Competition"
+authors: 
+  - Group 11: 
+      - Lourenço Santos Moitinho de Almeida
+      - Liam Thomassen
+      - Tim Rentenaar
+      - Erdem Koçer 
+date: last-modified
+format:
+  html:
+    toc: true
+    self-contained: true
+    code-fold: true
+    df-print: kable
+---
+
+change this code chunk to `.qmd` syntax
+
+```{r setup, include = FALSE}
+knitr::opts_chunk $ set( echo = TRUE, message = FALSE, warning = FALSE, 
+                         comment = " ", error = FALSE, fig.align = 'center'  )
+```
+
+# Assignment 3: Supervised Learning Competition
+
+```{r}
+#| label: R packages
+#| echo: false
+#| warning: false
+#| message: false
+
+library(tidyverse)
+library(fastDummies)
+library(ISLR)
+library( ggplot2 )  
+library(dplyr)
+
+# additional packages here
+```
+
+```{r}
+#| label: data loading
+#| echo: false
+test_data <- readRDS("test.rds")
+train_data <-readRDS("train.rds")
+```
+
+## Data Description & Data Exploration
+
+1.  Tukey's Approach
+
+-   look at center of spread
+-   find comparison
+
+2.  Peng's EDA checklist
+
+-   formulate question
+-   read into your data
+-   check packaging, run `str()`
+-   look at the top and bottom of your data
+-   check your n's
+
+3.  5-number summary
+
+-   extremes (max, min)
+-   Q1 and Q3
+-   median
+
+4.  Other
+
+-   data type summary
+-   missing values?
+-   outlier detection -variation and association (lab 8)
+
+As shown below the training dataset contains 316 observations and 31 variables. One of which is the dependent variable `score`. The majority of these explanatory variables are mainly factor (categorical) features. Although this dataset contains 14 numerical features, only `age`, `absences` and `score` are true numeric variables. The other 11 'numeric' variables are either categorical or ordinal.
+```{r}
+str(train_data)
+```
+In order to better understand the dataset...# To do 
+```{r}
+#checking the top and bottom of the dataset 
+head(train_data)
+tail(train_data)
+```
+```{r}
+#checking for missing values 
+sapply(train_data, function(x) sum(is.na(x)))
+```
+```{r}
+train_data |> ggplot(aes(x=score)) +
+  geom_histogram()
+```
+
+```{r}
+summary(train$score)
+```
+
+```{r}
+#summary of data
+# 5-number summary 
+summary(train_data)
+```
+```{r}
+#outliers? 
+train_data |> 
+  ggplot(aes(x = score)) +
+  geom_boxplot() +
+  theme_minimal()
+```
+### Finding the Correlation and plotting the data vs score
+
+After calculating the correlation in our training dataset we can plot this to get the Correlogram. In this we can clearly see the number of past class failures has the biggest negative correlation on the scores. Further both the mothers and fathers eduation have the biggest positive correlation.
+```{r}
+# comparisons between columns (numeric only): correlation
+corrplot(cor(train[c("age","Medu","Fedu","traveltime","studytime","failures","famrel","freetime","goout","Dalc","Walc","health","absences","score")]))
+```
+
+```{r}
+# Include this or not? use specific examples perhaps?
+# Create a plot for every attribute
+for (attribute in names(train)) {
+  if (attribute != "score") {  # Exclude the "score" column itself
+    plot(train[[attribute]], train$score,
+         xlab = attribute, ylab = "score",
+         main = paste("plot of", attribute, "vs Score"))
+  }
+}
+```
+
+```{r}
+ggplot(train, aes(x = score)) +
+  geom_density() +
+  xlab("Scores") +
+  ylab("Frequency") +
+  ggtitle("Density Plot of Scores")
+```
+
+
+
+## Model Description
+
+1.  Linear Regression 
+2.  Regularized Regression
+
+-   use lasso, ridge or something better
+
+3.  Some tree-based model
+
+-   e.g. random forest
+
+4.  Attempt Neural Network
+
+## Data Preprocessing & Transformation
+
+- forward and backward feature selection for regression?
+
+1.  Convert variables into correct data types
+2.  Find statistically significant independent variables 
+2.  One-hot encoding for categorial variables (ordinal encoding for ordinal variables?)
+3.  Data Reduction
+
+-   dimensionality reduction
+-   remove correlated variables
+
+5.  Some type of scaling for `score`?
+-   z-score/min-max
+
+```{r}
+train_data_dummy <- dummy_cols(train_data,remove_first_dummy=TRUE,remove_selected_columns=TRUE)
+train_data_dummy
+```
+
+```{r}
+set.seed(1)
+
+#Use 70% of dataset as training set and remaining 30% as testing set
+sample <- sample(c(TRUE, FALSE), nrow(train_data_dummy), replace=TRUE, prob=c(0.9,0.1))
+train  <- train_data_dummy[sample, ]
+test   <- train_data_dummy[!sample, ]
+
+```
+
+```{r}
+X_train <- train[, -which(names(train) == "score")]
+y_train <- data.frame(train$score)
+```
+
+```{r}
+X_test <- test[, -which(names(train) == "score")]
+y_test <- test$score
+```
+
+```{r}
+predict_linreg = lm(score~.,data=train)
+#summary(predict_linreg)
+y_pred_lin_reg <- predict(predict_linreg,newdata=test)
+
+# Calculate the Mean Squared Error (MSE)
+mean((y_pred_lin_reg - y_test)^2)
+```
+
+```{r}
+multinom <- keras_model_sequential() %>%
+    layer_dense(16, activation = 'relu') %>%
+    layer_dense(12, activation = 'relu') %>%
+    layer_dense(1)
+
+multinom %>% compile(
+  loss = 'mean_absolute_error',
+  optimizer = optimizer_adam(0.001)
+)
+
+```
+
+```{r}
+pl <- multinom %>% fit(as.matrix(X_train), 
+      as.matrix(y_train), 
+      epochs = 100, 
+      validation_split = 0.1,       
+      verbose = 1)
+
+```
+## Model Comparison
+
+1.  Models 
+1.1 Linear Regression 
+1.2 Ridge Regression
+1.3 Tree
+1.4 Neural Network 
+2. Comparison
+-   MSE, Train-Val-Test Split (lab 12), Neural Networks have their own special evaluation, ROC curve, AUC 
+
+```{r} 
+# creating a mean trivial baseline is not possible with the caret package 
+# the mean trivial baseline will be created with a single train/dev split
+
+sample_size <- floor(0.8 * nrow(train_dummy))
+
+set.seed(1234) 
+
+train_index <- sample(seq_len(nrow(train_dummy)), size=sample_size)
+
+train_dummy_train <- train_dummy[train_index,] 
+
+train_dummy_dev <- train_dummy[-train_index,]
+
+mean_score_train <- mean(train_dummy_train$score)
+
+``` 
+
+```{r}
+# resulting Mean Absolute Error from the mean trivial baseline
+abserror <- abs(train_dummy_dev$score - mean_score_train)
+mae <- mean(abserror)
+print(mae)
+```
+
+```{r}
+y_pred <- predict(multinom, as.matrix(X_train))
+
+# Calculate the Mean Squared Error (MSE)
+mean((as.matrix(y_train) - y_pred)^2)
+```
+
+```{r}
+y_pred <- predict(multinom, as.matrix(X_test))
+# Calculate the Mean Squared Error (MSE)
+mean((y_pred - y_test)^2)
+```
+
+```{r}
+ggplot(data=NULL, aes(x=y_test,y=y_pred)) +
+  geom_point()+
+  geom_abline(intercept = 0, slope = 1, color = "blue") +
+  labs(x = "Observed", y = "Predicted") +
+  ggtitle("Observed vs. Predicted") +
+  xlim(c(-2,2)) +
+  ylim(c(-2,2))
+```
+
+```{r}
+ggplot(data=NULL, aes(x=y_test,y=y_pred_lin_reg)) +
+  geom_point()+
+  geom_abline(intercept = 0, slope = 1, color = "blue") +
+  labs(x = "Observed", y = "Predicted") +
+  ggtitle("Observed vs. Predicted") +
+  xlim(c(-2,2)) +
+  ylim(c(-2,2))
+```
+
+## Chosen Model
+
+-   focus on MSE
+
+## Team Member Contributions
+
+-   Lourenço Santos Moitinho de Almeida: a, b, c
+-   Liam Thomassen: b, c, d
+-   Tim Rentenaar: a, b, d
+-   Erdem Koçer: a, b, d
