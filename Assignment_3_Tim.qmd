@@ -14,17 +14,23 @@ format:
     df-print: kable
 ---
 
+## 
+
 # Importing libraries and loading the data
 
 ```{r}
 install.packages("fastDummies")
 install.packages("caret")
+#install.packages("e1071")
+#install.packages("corrplot")
 ```
 
 ```{r}
 library(tidyverse)
 library(fastDummies)
 library(caret)
+library(ggplot2)
+library(corrplot)
 ```
 
 ```{r}
@@ -32,15 +38,18 @@ train <- readRDS("train.rds")
 test <- readRDS("test.rds")
 ```
 
-# Exploratory Data Analysis
+# Data description & Exploratory Data Analysis
 
 In this part Exploratory Data Analysis (EDA) is performed according to Tukey's and Peng's approaches from the lecture.
 
 -   Tukey's approach to EDA
+
     -   Find center and spread
     -   Find comparisons
     -   "Straightening and Flattening"
+
 -   Peng's EDA checklist
+
     1.  Formulate your question
     2.  Read in your data
     3.  Check the packaging
@@ -49,41 +58,71 @@ In this part Exploratory Data Analysis (EDA) is performed according to Tukey's a
     6.  Validate with atleast one external source
     7.  Try the easy solution first
     8.  Challenge your solution
+
+    ```{=html}
+    <!-- -->
+    ```
     9.  Follow up
 
-```{r}
-# check packaging
-str(train)
-```
+    ```{r}
+    # check packaging
+    str(train)
+    ```
 
-```{r}
-# check top of dataset
-head(train)
-```
+    ```{r}
+    # check top of dataset
+    head(train)
+    ```
 
-```{r}
-# check bottom of dataset
-tail(train)
-```
+    ```{r}
+    # check bottom of dataset
+    tail(train)
+    ```
 
-```{r}
-# check number of missing values
-sum(is.na(train))
-```
+    ```{r}
+    # check number of missing values
+    sum(is.na(train))
+    ```
 
-```{r}
-# check center and spread of score
-summary(train$score)
-```
+    ```{r}
+    # check center and spread of score
+    summary(train$score)
+
+
+    ```
+
+    ### Finding the Correlation and plotting the data vs score
+
+    After calculating the correlation in our training dataset we can plot this to get the Correlogram. In this we can clearly see the number of past class failures has the biggest negative correlation on the scores. Further both the mothers and fathers eduation have the biggest positive correlation.
 
 ```{r}
 # comparisons between columns (numeric only): correlation
-cor(train[c("age","Medu","Fedu","traveltime","studytime","failures","famrel","freetime","goout","Dalc","Walc","health","absences","score")])
+corrplot(cor(train[c("age","Medu","Fedu","traveltime","studytime","failures","famrel","freetime","goout","Dalc","Walc","health","absences","score")]))
+```
+
+```{r}
+# Include this or not? use specific examples perhaps?
+# Create a plot for every attribute
+for (attribute in names(train)) {
+  if (attribute != "score") {  # Exclude the "score" column itself
+    plot(train[[attribute]], train$score,
+         xlab = attribute, ylab = "score",
+         main = paste("plot of", attribute, "vs Score"))
+  }
+}
 ```
 
 # Data preparation
 
 ## Data Cleaning
+
+```{r}
+ggplot(train, aes(x = score)) +
+  geom_density() +
+  xlab("Scores") +
+  ylab("Frequency") +
+  ggtitle("Density Plot of Scores")
+```
 
 ## Data Transformation
 
@@ -107,26 +146,18 @@ train_control <- trainControl(method="cv", number=5)
 
 ### Trivial baseline (mean)
 
-```{r}
-# creating a mean trivial baseline is not possible with the caret package
-# the mean trivial baseline will be created with a single train/dev split
+\`\`\`{r} \# creating a mean trivial baseline is not possible with the caret package \# the mean trivial baseline will be created with a single train/dev split
 
-sample_size <- floor(0.8 * nrow(train_dummy))
+sample_size \<- floor(0.8 \* nrow(train_dummy))
 
-set.seed(1234)
-train_index <- sample(seq_len(nrow(train_dummy)), size=sample_size)
+set.seed(1234) train_index \<- sample(seq_len(nrow(train_dummy)), size=sample_size)
 
-train_dummy_train <- train_dummy[train_index,]
-train_dummy_dev <- train_dummy[-train_index,]
+train_dummy_train \<- train_dummy\[train_index,\] train_dummy_dev \<- train_dummy\[-train_index,\]
 
-mean_score_train <- mean(train_dummy_train$score)
-```
+mean_score_train \<- mean(train_dummy_train\$score)
 
+```         
 ### Linear regression
-
-```{r}
-# training a linear model using k-fold crossvalidation
-lm <- train(score ~ ., data=train_dummy, method="lm", trControl=train_control)
 ```
 
 ### Neural Network
