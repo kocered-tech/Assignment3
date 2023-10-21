@@ -140,7 +140,8 @@ ggplot(data=NULL, aes(x=y_test,y=pred_y_xgboost)) +
   labs(x = "Observed", y = "Predicted") +
   ggtitle("Observed vs. Predicted") +
   xlim(c(-2,2)) +
-  ylim(c(-2,2))
+  ylim(c(-2,2)) +
+  coord_fixed()
 ```
 
 ## Neural Network
@@ -148,7 +149,11 @@ ggplot(data=NULL, aes(x=y_test,y=pred_y_xgboost)) +
 ```{r}
 multinom <- keras_model_sequential() %>%
     layer_dense(16, activation = 'tanh') %>%
-    layer_dense(8, activation = 'sigmoid') %>%
+    layer_dropout(rate=0.1) %>%
+    layer_dense(16, activation = 'relu') %>%
+    layer_dropout(rate=0.1) %>%
+    layer_dense(16, activation = 'relu') %>%
+    layer_dropout(rate=0.1) %>%
     layer_dense(1)
 
 multinom %>% compile(
@@ -164,7 +169,7 @@ multinom %>% compile(
 ```{r}
 pl <- multinom %>% fit(as.matrix(X_train), 
       as.matrix(y_train), 
-      epochs = 60, 
+      epochs = 500, 
       validation_split = 0.1,       
       verbose = 1)
 ```
@@ -183,7 +188,8 @@ ggplot(data=NULL, aes(x=y_test,y=pred_y_nn)) +
   labs(x = "Observed", y = "Predicted") +
   ggtitle("Observed vs. Predicted") +
   xlim(c(-2,2)) +
-  ylim(c(-2,2))
+  ylim(c(-2,2)) +
+  coord_fixed(ratio=1)
 ```
 
 ```{r}
