@@ -31,7 +31,7 @@ train_data <- readRDS("train.rds")
 ```{r}
 train_data_dummy <- dummy_cols(train_data,remove_first_dummy=TRUE,remove_selected_columns=TRUE)
 
-sample <- sample(c(TRUE, FALSE), nrow(train_data_dummy), replace=TRUE, prob=c(0.8,0.2))
+sample <- sample(c(TRUE, FALSE), nrow(train_data_dummy), replace=TRUE, prob=c(0.80,0.2))
 train  <- train_data_dummy[sample, ]
 test   <- train_data_dummy[!sample, ]
 ```
@@ -46,7 +46,7 @@ y_test <- test$score
 ```{r}
 get_random_Data <- function() {
   train_data <- readRDS("train.rds")
-  train_data_dummy <- dummy_cols(train_data,remove_first_dummy=TRUE,remove_selected_columns   =TRUE)
+  train_data_dummy <- dummy_cols(train_data,remove_selected_columns   =TRUE)
 
   sample <- sample(c(TRUE, FALSE), nrow(train_data_dummy), replace=TRUE, prob=c(0.9,0.1))
   train  <- train_data_dummy[sample, ]
@@ -92,11 +92,11 @@ xgb_train = xgb.DMatrix(data = as.matrix(X_train), label = as.matrix(y_train))
 xgb_test = xgb.DMatrix(data = as.matrix(X_test), label = as.matrix(y_test))
 
 watchlist = list(train=xgb_train, test=xgb_test)
-xgb_model = xgb.train(data = xgb_train, max.depth = 8, watchlist=watchlist, nrounds = 100)
+xgb_model = xgb.train(data = xgb_train, max.depth = 6, watchlist=watchlist, nrounds = 25,verbose=1)
 ```
 
 ```{r}
-model_xgboost = xgboost(data = xgb_train, max.depth = 5, nrounds = 40, verbose = 0)
+model_xgboost = xgboost(data = xgb_train, max.depth = 6, nrounds = 25, verbose = 0)
 pred_y_xgboost <- predict(model_xgboost,xgb_test)
 
 # Calculate the Mean Squared Error (MSE)
@@ -114,7 +114,7 @@ mean((pred_gam - y_test)^2)
 ```
 
 ```{r}
-model <- gam(score ~  ),
+model <- gam(score ~.,
             data = train)
 
 pred_gam <- predict(model,newdata=X_test)
@@ -123,10 +123,15 @@ mean((pred_gam - y_test)^2)
 
 ```{r}
 # Fit a Bayesian regression model with a Gaussian prior
-model <- brm(score ~.,
-             data = train, chains = 4, iter = 2000,
-             prior = c(prior(normal(0, 0.5), class = "b"))
+weights <- c(1, 0.3, 0.3) 
+
+combined_prior <- prior(
+
+    normal(0, 0.5),
+  class = "b"
 )
+
+model <- brm(score ~.,data = train, chains = 4, iter = 8000, prior = combined_prior)
 
 # View the model summary
 summary(model)
@@ -145,31 +150,56 @@ summary(svm_model)
 
 ```{r}
 multinom <- keras_model_sequential() %>%
-  layer_dense(20,activation="relu") %>%
+  layer_dense(256) %>%
+  layer_dropout(0.2) %>%
+  layer_dense(128,activation="relu") %>%
+  layer_dropout(0.2) %>%
+  layer_dense(64,activation="relu") %>%
+  layer_dropout(0.2) %>%
+  layer_dense(32,activation="relu") %>%
+  layer_dropout(0.2) %>%
+  layer_dense(16,activation="relu") %>%
+  layer_dropout(0.2) %>%
   layer_dense(8,activation="relu") %>%
+  layer_dropout(0.2) %>%
+  layer_dense(1)
+```
+
+```{r}
+multinom <- keras_model_sequential() %>%
+  layer_dense(256,activation="relu") %>%
+  layer_dropout(0.2) %>%
+  layer_dense(128,activation="relu") %>%
+  layer_dropout(0.2) %>%
+  layer_dense(64,activation="relu") %>%
+  layer_dropout(0.2) %>%
+  layer_dense(32,activation="relu") %>%
+  layer_dropout(0.2) %>%
+  layer_dense(16,activation="relu") %>%
+  layer_dropout(0.2) %>%
+  layer_dense(8,activation="relu") %>%
+  layer_dropout(0.2) %>%
   layer_dense(1)
 
 multinom %>% compile(
   loss = 'mean_squared_error',
-  optimizer = optimizer_adam(),
+  optimizer = optimizer_adam()
 )
 
 pl <- multinom %>% fit(as.matrix(X_train), 
       as.matrix(y_train), 
-      epochs = 500, 
-      validation_split = 0.1,       
+      epochs = 400, 
+      validation_split = 0.2,  
       verbose = 1)
+
 
 pred_y_nn <- predict(multinom, as.matrix(X_test))
 mean <- mean((as.matrix(y_test) - pred_y_nn)^2)
+plot(pl)
 ```
 
 ```{r}
-data <- get_random_Data()
-get_cross_validation(data)
-```
-
-```{r}
+model <- multinom
 pred_y_nn <- predict(multinom, as.matrix(X_test))
 
 # Calculate the Mean Squared Error (MSE)
