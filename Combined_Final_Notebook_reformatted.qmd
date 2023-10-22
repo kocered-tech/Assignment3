@@ -1,0 +1,511 @@
+---
+title: "Assignment3: Supervised Learning Competition - Group 11"
+authors: 
+  - Lourenço Santos Moitinho de Almeida
+  - Liam Thomassen
+  - Tim Rentenaar
+  - Erdem Koçer 
+date: last-modified
+format:
+  html:
+    toc: true
+    self-contained: true
+    code-fold: true
+    df-print: kable
+---
+
+```{r}
+#| label: R packages
+#| echo: false
+#| warning: false
+#| message: false
+ install.packages("brms")
+# install.packages("glmnet")
+ install.packages("xgboost")
+ install.packages("mgcv")
+ install.packages("e1071")
+#library(keras)
+#install_tensorflow()
+
+library(tidyverse)
+library(fastDummies)
+library(ISLR)
+
+library(corrplot)
+library(ggplot2 )  
+library(dplyr)
+library(caret)
+library(xgboost)
+library("brms")
+library(glmnet)
+library(mgcv)
+library(e1071)
+## Run install_tensorflow if keras gives an error
+```
+
+```{r}
+#| label: Data loading
+#| echo: false
+test_data <- readRDS("test.rds")
+train_data <-readRDS("train.rds")
+```
+
+# Data Description & Data Exploration
+
+In order to predict student performance using the various characteristics of the students, we begin our analysis by exploring our dataset. Our exploratory data analysis will roughly follow the guidelines stated by Tukey and Peng. With that said, in order to get a preliminary understanding of our data, we ran the `str()` command as shown below in *Table 1*:
+
+**Table 1:** Checking the Packaging of the Dataset using `str()`
+
+```{r}
+#| label: Checking Packaging 
+str(train_data)
+```
+
+```{r}
+#| label: Splitting the training dataset into variable types 
+factor_cols <- names(train_data)[sapply(train_data, is.factor)]
+num_cols <- names(train_data)[sapply(train_data, is.numeric)]
+```
+
+This training dataset contains `r nrow(train_data)` rows and `r ncol(train_data)` columns. Furthermore, the column `score` represents our dependent variable while the rest of the columns are explanatory variables. This dataset contains two types of variables: factor (categorial) and numerical variables. Each column can be categorized into one of the two variables types:
+
+-   <u>Factor Variables:</u> `r paste(factor_cols, collapse=", ")`
+-   <u>Numerical Variables:</u> `r paste(num_cols, collapse=", ")`
+
+Additionally, *Figure 1* dispalys that this dataset doesn't contain any missing values. Therefore, any missing information imputation strategies won't be required during the data (pre)processing step of our analysis.
+
+**Figure 1:** Counts of all the Missing Data per Column
+
+```{r}
+#| label: Missing data counts per column 
+sapply(train_data, function(x) sum(is.na(x)))
+```
+
+An important thing to note is that despite the insights given by running the `str()` command, reading the column descriptions file gives contradicting information. For instance out of the `r sum(sapply(train_data, is.numeric))` numeric columns, only `age`, `absences` and `score` are 'true' numericcal variables. The rest of the variables are ordinal variables such as `Dalc`, a variable ranging from 1-5 based on workday alcohol consumption. This assessment is further backed up by analysing the top and bottom of the dataset as shown below in *Table 2* and *Table 3*:
+
+**Table 2:** Top of the Dataset
+
+```{r}
+#| label: Top of the Dataset 
+head(train_data)
+```
+
+**Table 3:** Bottom of the Dataset
+
+```{r}
+#| label: Bottom of the Dataset 
+tail(train_data)
+```
+
+## The Analysis for the Dependent Variable: Score
+
+```{r}
+#| label: 5-number summary for score
+minimum_value <- round(min(train_data$score), 2)
+maximum_value <- round(max(train_data$score), 2)
+median_value <- round(median(train_data$score), 2)
+q1_value <- round(quantile(train_data$score, 0.25), 2)
+q3_value <- round(quantile(train_data$score, 0.75), 2)
+```
+
+The whole aim of this analysis is to predict scores for students in the test dataset. In order to do so we took a closer look at the variable `score`. Below, *Figure 2* displays the spread of `score` in addition to a 5-number summary. Following the inter-quartile range rule for outlier detection, scores outside the range of $`r q1_value-1.5*(q3_value-q1_value)`\leq x \leq `r q3_value+1.5*(q3_value-q1_value)`$ would be considered outliers.
+
+**Figure 2:** The Spread and 5-Number Summary of `score`
+
+```{r}
+ggplot(train_data, aes(x = score)) +
+  geom_density(fill = "skyblue") +
+  xlab("Scores") +
+  ylab("Frequency") +
+  ggtitle("Density Plot of Scores with 5-Number Summary Overlay") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  
+  geom_vline(aes(xintercept = minimum_value, color = "Minimum = -2.71"), linetype = "longdash") + 
+  annotate(geom = "text", label = "Minimum", color = "black", angle = 90, x = minimum_value-0.1, y = 0.2, size = 3) +
+  
+  geom_vline(aes(xintercept = maximum_value, color = "Maximum = 2.23"), linetype = "longdash") + 
+  annotate(geom = "text", label = "Maximum", color = "black", angle = 90, x = maximum_value-0.1, y = 0.2, size = 3) +
+  
+  geom_vline(aes(xintercept = median_value, color = "Median = -0.03"), linetype = "longdash") + 
+  annotate(geom = "text", label = "Median", color = "black", angle = 90, x = median_value-0.1, y = 0.2, size = 3) +
+  
+  geom_vline(aes(xintercept = q1_value, color = "Quartile 1 = -0.63"), linetype = "longdash") + 
+  annotate(geom = "text", label = "Quartile 1", color = "black", angle = 90, x = q1_value-0.1, y = 0.2, size = 3) +
+  
+  geom_vline(aes(xintercept = q3_value, color = "Quartile 3 = 0.64"), linetype = "longdash") + 
+  annotate(geom = "text", label = "Quartile 3", color = "black", angle = 90, x = q3_value-0.1, y = 0.2, size = 3) +
+  
+  scale_color_manual("5-Number Summary", values = c("Minimum = -2.71" = "black", "Maximum = 2.23" = "black", "Median = -0.03" = "black", "Quartile 1 = -0.63" = "black", "Quartile 3 = 0.64" = "black"))
+
+```
+
+## Correlation between Score and the Explanatory Variables
+
+For the correlation between `score` and the rest of the explanatory variables we divided the training dataset by variable type. *Table 4* displays the correlation between the numerical variables. The variables `failures`, `goout` and `age` measuring the student's number of past class failures, time spent with friend and age seemed to have the greatest negative correlation against `score` while `Medu` and `Fedu`, variables measuring their parent's education seemed to have the greatest positive correlation. Additionally, `goout` and `Dalc` (workday alcohol consumption) are both positively correlated with `Walc` (weekend alcohol consumption). In contrast, *Table 5* displays the correlation between the converted dummy categorical variables and `score`. Although, none of the categorical variables seemed to be correlated with `score`. The only strongly correlated variables in this table were between the categories of `Mjob` and `Fjob` (variables that measure the parent's occupation).
+
+**Note:** Do we remove the correlated variables for the analysis and models?
+
+**Table 4:** Correlation Matrix between Numerical Variables and `score`
+
+```{r, fig.width = 10, fig.height = 10}
+#| label: Correlation between numerical variables and score
+corrplot(cor(train_data[sapply(train_data, is.numeric)]), diag = FALSE)
+```
+
+**Table 5:** Correlation Matrix between Converted Categorical Variables and `score`
+
+```{r, fig.width = 10, fig.height = 10}
+#| label: Correlation between dummy categorical variables and score
+temp_df <- train_data[, !sapply(train_data, is.numeric)]
+temp_df_dummy <- dummy_cols(temp_df,remove_first_dummy=TRUE,remove_selected_columns=TRUE)
+temp_df_dummy$score <- train_data$score
+
+corrplot(cor(temp_df_dummy), diag = FALSE)
+```
+
+# Data Preparation
+
+## Data Cleaning
+
+We have taken no data cleaning measures
+
+## Data Transformation
+
+We have taken a single transformation measure, which is dummy coding the categorical attributes
+
+```{r}
+# dummy coding
+train_dummy <- dummy_cols(train_data, remove_selected_columns = TRUE)
+test_dummy <- dummy_cols(test_data, remove_selected_columns = TRUE)
+```
+
+## Data reduction
+
+Data reduction techniques were implemented during the Model Preparation phase for models like Lasso Regression and GAM.
+
+# Creating Train/dev splits
+
+## Single train/dev split
+
+```{r}
+# creating a single train/dev split with a random 80/20 split
+sample_size <- floor(0.8 * nrow(train_dummy))
+
+set.seed(1)
+train_index <- sample(seq_len(nrow(train_dummy)), size=sample_size)
+
+train_dummy_train <- train_dummy[train_index,]
+train_dummy_dev <- train_dummy[-train_index,]
+```
+
+## k-fold cross validation
+
+```{r}
+# k-fold cross validation, k=5
+train_control <- trainControl(method="cv", number=5)
+```
+
+# Model Exploration
+
+## Trivial baseline with a single train/dev split
+
+### Trivial baseline (mean)
+
+We have chosen to create a trivial baseline by taking the mean score of the train data as the score for the dev data. So we are able to evaluate if our models perform better than this baseline.
+
+`{r} # creating a mean trivial baseline is not possible with the caret package # the mean trivial baseline will be created with a single train/dev split  mean_score_train <- mean(train_dummy_train$score)}`
+
+### Trivial baseline (mean) evaluation
+
+The trivial baseline is evaluated by calculating the MAE and the MSE
+
+```{r}
+# resulting MAE and MSE from the trivial baseline
+mae <- mean(abs(train_dummy_dev$score - mean_score_train))
+mse <- mean((train_dummy_dev$score - mean_score_train) ** 2)
+
+print(mae)
+print(mse)
+```
+
+## Cross Validation
+
+### Linear regression
+
+Another model we consider is the linear regression model, which we have applied to our k-fold cross validation.
+
+`{r} # training a linear model using k-fold crossvalidation lm <- train(score ~ ., data=train_dummy, method="lm", trControl=train_control)}`
+
+### Linear Regression evaluation
+
+The linear regression model is evaluated with RMSE, Rsquared, and MAE
+
+```{r}
+# resulting scores (including MAE) from linear regression
+print(lm)
+```
+
+### Neural Network
+
+Another model we consider is the neural network model, which we have applied to our k-fold cross validation.
+
+`{r} # training a model averaged neural network using k-fold crossvalidation nn <- train(score ~ ., data=train_dummy, method="avNNet", trControl=train_control)}`
+
+### Neural Network evaluation
+
+The neural network model is evaluated with RMSE, Rsquared, and MAE
+
+```{r}
+print(nn)
+```
+
+### kNN
+
+Another model we consider is the k Nearest Neighbours model, which we have applied to our k-fold cross validation.
+
+`{r} # training knn using k-fold crossvalidation knn <- train(score ~ ., data=train_dummy, method="knn", trControl=train_control)}`
+
+### kNN evaluation
+
+The kNN model is evaluated with RMSE, Rsquared, and MAE
+
+```{r}
+print(knn)
+```
+
+According to the cross validation results, the best-performing model was kNN. However, these are quick calculations to see what kind of models would work for this problem. That is, by tuning the hyperparameters of more complex models such as neural networks or tree-based algorithms, better score on train set can be achieved.
+
+## Other models trained with a single train/dev split
+
+Split feature vectors
+
+```{r}
+X_train <- train_dummy_train[, -which(names(train_dummy_train) == "score")]
+y_train <- data.frame(train_dummy_train$score)
+X_test <- train_dummy_dev[, -which(names(train_dummy_dev) == "score")]
+y_test <- train_dummy_dev$score
+```
+
+### Bayesian Regression
+
+```{r}
+combined_prior <- prior(
+  normal(0, 0.6),
+  class = "b"
+)
+
+model <- brm(score ~.,data = train_dummy_train, chains = 4, iter = 8000, prior = combined_prior)
+
+# View the model summary
+summary(model)
+```
+
+### Bayesian Model Evaluation
+
+```{r}
+pred_y_bayesian <- predict(model,newdata = train_dummy_dev)
+pred_y_bayesian<-data.frame(pred_y_bayesian)
+pred_y_bayesian<- pred_y_bayesian$Estimate
+cat("mse of bayesian model: ", mean((as.matrix(pred_y_bayesian)-as.matrix(y_test))^2))
+```
+
+### XGBoost
+
+```{r}
+xgb_train = xgb.DMatrix(data = as.matrix(X_train), label = as.matrix(y_train))
+xgb_test = xgb.DMatrix(data = as.matrix(X_test), label = as.matrix(y_test))
+
+watchlist = list(train=xgb_train, test=xgb_test)
+xgb_model = xgb.train(data = xgb_train, max.depth = 3, watchlist=watchlist, nrounds = 10,verbose=1)
+```
+
+### XGBoost Model Evaluation
+
+```{r}
+model_xgboost = xgboost(data = xgb_train, max.depth = 3, nrounds = 5, verbose = 0)
+pred_y_xgboost <- predict(model_xgboost,xgb_test)
+
+cat("mse of xgboost model: ", mean((as.matrix(pred_y_xgboost)-as.matrix(y_test))^2))
+```
+
+### Lasso Regression
+
+```{r}
+original_weights <- rep(1, nrow(X_train)) 
+
+cv_model <- cv.glmnet(data.matrix(X_train), data.matrix(y_train), alpha = 1)
+
+best_lambda <- cv_model$lambda.min
+best_model <- glmnet(data.matrix(X_train), data.matrix(y_train), alpha = 1, lambda = best_lambda)
+plot(cv_model) 
+```
+
+### Lasso Model Evaluation
+
+```{r}
+pred_y_lasso <- predict(best_model, s = best_lambda, newx = data.matrix(X_test))
+cat("mse of lasso model: ", mean((as.matrix(pred_y_lasso)-as.matrix(y_test))^2))
+```
+
+### Support Vector Machine
+
+```{r}
+svm_model <- svm(x = X_train, y = y_train, kernel = "radial", cost = 1)
+pred_y_svm <- predict(svm_model, newdata = X_test)
+cat("mse of SVM model: ", mean((as.matrix(pred_y_svm)-as.matrix(y_test))^2))
+```
+
+### GAM
+
+```{r}
+gam_model <- gam(score ~ s(age,k=3) + 
+                   s(failures, k=4) + 
+                   s(studytime, k = 4) +
+                   internet_no +
+                   sex_M +
+                   famsize_GT3 +
+                   Dalc +
+                   Walc +
+                   Pstatus_A +
+                   reason_reputation, 
+                 data = train_dummy_train)
+
+testing_data <- data.frame(X_test)
+
+pred_y_gam <- predict(gam_model, newdata = testing_data)
+cat("mse of GAM model: ", mean((as.matrix(pred_y_gam)-as.matrix(y_test))^2))
+
+```
+
+### Neural Networks
+
+#### Simple Neural Network
+
+```{r}
+library(tensorflow)
+library(keras)
+
+model <- keras_model_sequential() %>%
+    layer_dense(16, activation = 'relu') %>%
+    layer_dropout(0.1) %>%
+    layer_dense(8, activation = 'relu') %>%
+    layer_dropout(0.1) %>%
+    layer_dense(1)
+
+model %>% compile(
+  loss = 'mean_absolute_error',
+  optimizer = optimizer_adam()
+)
+
+plot_model <- model %>% fit(as.matrix(X_train), 
+      as.matrix(y_train), 
+      epochs = 100, 
+      validation_split = 0.1,  
+      verbose = 0)
+
+pred_y_nn <- predict(model, as.matrix(X_test))
+plot(plot_model)
+```
+
+#### Simple Neural Network Evaluation
+
+```{r}
+cat("mse of simple NN model: ", mean((as.matrix(pred_y_nn)-as.matrix(y_test))^2))
+```
+
+#### Complex Neural Network
+
+```{r}
+model_complex <- keras_model_sequential() %>%
+    layer_dense(512, activation = 'relu', regularizer_l1_l2(l1=0.01,l2=0.01)) %>%
+    layer_dropout(0.2) %>%
+    layer_dense(128, activation = 'relu', regularizer_l1_l2(l1=0.01,l2=0.01)) %>%
+    layer_dropout(0.2) %>%
+    layer_dense(64, activation = 'relu', regularizer_l1_l2(l1=0.01,l2=0.01)) %>%
+    layer_dropout(0.2) %>%
+    layer_dense(32, activation = 'relu', regularizer_l1_l2(l1=0.01,l2=0.01)) %>%
+    layer_dropout(0.2) %>%
+    layer_dense(16, activation = 'relu', regularizer_l1_l2(l1=0.01,l2=0.01)) %>%
+    layer_dropout(0.2) %>%
+    layer_dense(8, activation = 'relu') %>%
+    layer_dense(1)
+
+model_complex %>% compile(
+  loss = 'mean_absolute_error',
+  optimizer = optimizer_adam()
+)
+
+plot_model <- model_complex %>% fit(as.matrix(X_train), 
+      as.matrix(y_train), 
+      epochs = 85, 
+      validation_split = 0.1,  
+      verbose = 0)
+
+pred_y_nn_complex <- predict(model_complex, as.matrix(X_test))
+plot(plot_model)
+```
+
+#### Complex Neural Network Evaluation
+
+```{r}
+cat("mse of complex NN model: ", mean((as.matrix(pred_y_nn_complex)-as.matrix(y_test))^2))
+```
+
+### Ensemble Models
+
+Instead of selecting one model, multiple models can be combined
+
+```{r}
+# Combine Complex NN with XGBoost 
+combined_model <- (pred_y_xgboost + pred_y_lasso) / 2
+
+cat("mse of combined model: ", mean((as.matrix(combined_model)-as.matrix(y_test))^2))
+```
+
+# Conclusion and Chosen Model
+
+*The current best approach involves an ensemble of two powerful models: XGBoost and Lasso Regression.*
+
+*Neural Networks were not as effective in this context due to the high number of features and a relatively small sample size. In contrast, models like Lasso Regression implement feature selection, allowing them to capture the underlying data structures more effectively without the risk of overfitting.*
+
+*However, it's essential to acknowledge that the confidence interval of the Lasso Regression results makes it challenging to accurately predict the final error rate for unseen samples. In other words, we should anticipate the Lasso model's performance to fall within this confidence interval when tested. When it comes to actual predictions, it's common for the model to perform less favorably than expected.*
+
+Another compelling approach explored in this study was the use of Generalized Additive Models (GAM), representing an extension of traditional linear regression models specifically tailored to unveil nonlinear relationships within the dataset. For this experiment, the GAM model was employed with parameters derived from the Lasso model. The outcomes proved to be slightly superior to alternative models but still fell short of the exceptional performance achieved by XGBoost. Notably, it's intriguing to observe that the GAM model demonstrated the capability to outperform Neural Networks, despite operating with a substantially reduced feature set.
+
+# Result
+
+*Apply the chosen model to predict the scores for the test data and export the result*
+
+```{r}
+xgb_test_Data <- xgb.DMatrix(data = as.matrix(test_dummy))
+pred_real_y_xgboost <- predict(model_xgboost, xgb_test_Data)
+
+pred_real_y_lasso <- predict(best_model, s = best_lambda, newx = data.matrix(test_dummy))
+
+combined_real_model <- (pred_real_y_lasso + pred_real_y_xgboost) / 2
+
+new_frame <- data.frame(pred_real_y_xgboost,pred_real_y_lasso,combined_real_model)
+
+ggplot(data = new_frame) +
+  geom_density(aes(pred_real_y_xgboost, fill = "XGboost", alpha=0.2)) +
+  geom_density(aes(s1, fill = "Lasso", alpha=0.2)) +
+  geom_density(aes(s1.1, fill = "Combined Model", alpha=0.2)) +
+  xlab("Scores") +
+  ylab("Frequency") +
+  ggtitle("Results from two models") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+## Save the file
+
+```{r}
+saveRDS(combined_real_model, "predictions.rds")
+```
+
+# Team member contributions
+
+-   Lourenço Santos Moitinho de Almeida: Data Description & Data Exploration
+-   Liam Thomassen: b, c, d
+-   Tim Rentenaar: Data Preparation, Model Exploration (Trivial baseline, cross validated models)
+-   Erdem Koçer: Model Exploration (Other models trained with a single train/dev split), Conclusion and Chosen Mode, Results
