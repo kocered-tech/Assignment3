@@ -181,7 +181,7 @@ test_dummy <- dummy_cols(test_data, remove_selected_columns = TRUE)
 
 ### Data reduction
 
-We have taken no data reduction measures
+Data reduction techniques were implemented during the Model Preparation phase for models like Lasso Regression and GAM.
 
 ## Model Training
 
@@ -302,7 +302,7 @@ X_test <- train_dummy_dev[, -which(names(train_dummy_dev) == "score")]
 y_test <- train_dummy_dev$score
 ```
 
-### Bayesian Regression 
+### Bayesian Regression
 
 ```{r}
 combined_prior <- prior(
@@ -363,7 +363,7 @@ pred_y_lasso <- predict(best_model, s = best_lambda, newx = data.matrix(X_test))
 cat("mse of lasso model: ", mean((as.matrix(pred_y_lasso)-as.matrix(y_test))^2))
 ```
 
-### Support Vector Machine 
+### Support Vector Machine
 
 ```{r}
 svm_model <- svm(x = X_train, y = y_train, kernel = "radial", cost = 1)
@@ -394,7 +394,6 @@ cat("mse of GAM model: ", mean((as.matrix(pred_y_gam)-as.matrix(y_test))^2))
 ```
 
 ### Neural Networks
-
 
 #### Simple Neural Network
 
@@ -479,9 +478,15 @@ combined_model <- (pred_y_xgboost + pred_y_lasso) / 2
 cat("mse of combined model: ", mean((as.matrix(combined_model)-as.matrix(y_test))^2))
 ```
 
-#### Chosen Model
+## Conclusion and Chosen Model
 
-*Current best is ensemble of multiple models*
+*The current best approach involves an ensemble of two powerful models: XGBoost and Lasso Regression.*
+
+*Neural Networks were not as effective in this context due to the high number of features and a relatively small sample size. In contrast, models like Lasso Regression implement feature selection, allowing them to capture the underlying data structures more effectively without the risk of overfitting.*
+
+*However, it's essential to acknowledge that the confidence interval of the Lasso Regression results makes it challenging to accurately predict the final error rate for unseen samples. In other words, we should anticipate the Lasso model's performance to fall within this confidence interval when tested. When it comes to actual predictions, it's common for the model to perform less favorably than expected.*
+
+Another compelling approach explored in this study was the use of Generalized Additive Models (GAM), representing an extension of traditional linear regression models specifically tailored to unveil nonlinear relationships within the dataset. For this experiment, the GAM model was employed with parameters derived from the Lasso model. The outcomes proved to be slightly superior to alternative models but still fell short of the exceptional performance achieved by XGBoost. Notably, it's intriguing to observe that the GAM model demonstrated the capability to outperform Neural Networks, despite operating with a substantially reduced feature set.
 
 ## Result
 
